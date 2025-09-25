@@ -12,9 +12,7 @@ const categoryRoutes = require("./src/routes/categoryRoutes");
 const productRoutes = require("./src/routes/productRoutes");
 const OrderRoutes = require("./src/routes/orderRoutes");
 const ReviewRoutes = require("./src/routes/reviewRoutes");
-const giftRoute = require("./src/routes/giftRoutes");
-const deliveryPartnerRoutes = require("./src/routes/deliveryPartnerRoutes");
-const barcodeTrackingRoutes = require("./src/routes/barcodeTrackingRoutes");
+
 // app.use(cors());
 app.use(cors({ origin: "*" }));
 app.use(express.json());
@@ -48,7 +46,7 @@ app.get("/", (req, res) => {
 });
 
 const PORT = process.env.PORT || 5000;
-const IP = "192.168.0.1";
+const IP = " 192.168.1.17";
 // app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
 app.listen(PORT, IP, () => {
   console.log(`Server running at http://${IP}:${PORT}/`);

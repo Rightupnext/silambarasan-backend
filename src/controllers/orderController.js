@@ -3,7 +3,6 @@ const db = require("../db");
 const crypto = require("crypto");
 require("dotenv").config();
 const Razorpay = require("razorpay");
-const { generateBarcodeForOrder } = require('./barcodeController');
 
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
@@ -91,30 +90,8 @@ exports.confirmOrder = async (req, res) => {
       [razorpay_payment_id, razorpay_signature, otp, razorpay_order_id]
     );
 
-    // Step 4: Fetch order
-    const [rows] = await db.query(
-      `SELECT * FROM full_orders WHERE razorpay_order_id = ?`,
-      [razorpay_order_id]
-    );
-
-    if (rows.length > 0) {
-      const order = rows[0];
-
-      // Generate barcodes and get array of objects
-      const barcodes = await generateBarcodeForOrder(order);
-
-      // Extract product codes for JSON column
-      const barcodeCodes = barcodes.map(b => b.barcode_text);
-
-      // Update full_orders.Barcode JSON column
-      await db.query(
-        `UPDATE full_orders SET Barcode = ? WHERE id = ?`,
-        [JSON.stringify(barcodeCodes), order.id]
-      );
-    }
-
     res.json({
-      message: "Order confirmed, payment successful, and barcodes saved.",
+      message: "Order confirmed, payment successful.",
       otp,
     });
   } catch (err) {
@@ -122,7 +99,6 @@ exports.confirmOrder = async (req, res) => {
     res.status(500).json({ error: "Failed to confirm order" });
   }
 };
-
 
 // Update Order
 exports.updateOrder = async (req, res) => {
@@ -134,8 +110,6 @@ exports.updateOrder = async (req, res) => {
     order_status,
     admin_issue_returnReply,
   } = req.body;
-
-  // console.log("Incoming Body:", req.body);
 
   try {
     // Fetch existing order info
@@ -223,18 +197,11 @@ exports.clientUpdateOrderIssue = async (req, res) => {
   const { orderId } = req.params;
   const { issue_type, issue_description } = req.body;
 
-  // console.log("🔧 Updating Order Issue:");
-  // console.log("Order ID:", orderId);
-  // console.log("Issue Type:", issue_type);
-  // console.log("Issue Description:", issue_description);
-
   try {
-    // Validate input
     if (!issue_type || !issue_description) {
       return res.status(400).json({ error: "Missing issue details." });
     }
 
-    // Perform update
     const [result] = await db.query(
       `UPDATE full_orders 
        SET issue_type = ?, issue_description = ?
@@ -246,20 +213,17 @@ exports.clientUpdateOrderIssue = async (req, res) => {
       return res.status(404).json({ error: "Order not found or not updated." });
     }
 
-    // Fetch updated row for confirmation
     const [updatedRow] = await db.query(
       `SELECT id, issue_type, issue_description FROM full_orders WHERE id = ?`,
       [orderId]
     );
-
-    // console.log("✅ Updated DB Row:", updatedRow[0]);
 
     res.json({
       message: "Issue details updated successfully.",
       updated: updatedRow[0],
     });
   } catch (error) {
-    console.error("❌ Client Issue Update Error:", error);
+    console.error("Client Issue Update Error:", error);
     res.status(500).json({ error: "Failed to update issue details." });
   }
 };
@@ -279,6 +243,7 @@ exports.getAllOrders = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 };
+
 exports.getUserIdByOrder = async (req, res) => {
   const { customer_id } = req.query;
 
@@ -299,6 +264,7 @@ exports.getUserIdByOrder = async (req, res) => {
     res.status(500).json({ error: "Failed to fetch orders" });
   }
 };
+
 exports.getOrderAnalytics = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -308,7 +274,6 @@ exports.getOrderAnalytics = async (req, res) => {
       dateFilter = `AND DATE(created_at) BETWEEN '${startDate}' AND '${endDate}'`;
     }
 
-    // 1. Grouped analytics by status
     const [statusResults] = await db.query(`
       SELECT order_status, COUNT(*) as count, SUM(total) as totalAmount
       FROM full_orders
@@ -316,14 +281,12 @@ exports.getOrderAnalytics = async (req, res) => {
       GROUP BY order_status
     `);
 
-    // 2. Overall summary
     const [overall] = await db.query(`
       SELECT COUNT(*) as totalOrders, SUM(total) as totalRevenue
       FROM full_orders
       WHERE razor_payment = 'done' ${dateFilter}
     `);
 
-    // 3. Payment history
     const [paymentHistory] = await db.query(`
       SELECT 
         DATE(created_at) AS date, 
@@ -335,7 +298,6 @@ exports.getOrderAnalytics = async (req, res) => {
       ORDER BY date DESC
     `);
 
-    // Format results
     const statusAnalytics = {
       pending: { count: 0, totalAmount: 0 },
       packed: { count: 0, totalAmount: 0 },
