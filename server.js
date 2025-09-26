@@ -1,8 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const path = require("path"); // ✅ FIXED: Add this line
+const cron = require("node-cron");
 require("dotenv").config();
-
 const app = express();
 
 const authRoutes = require("./src/routes/authRoutes");
@@ -12,7 +12,7 @@ const categoryRoutes = require("./src/routes/categoryRoutes");
 const productRoutes = require("./src/routes/productRoutes");
 const OrderRoutes = require("./src/routes/orderRoutes");
 const ReviewRoutes = require("./src/routes/reviewRoutes");
-
+const cleanUnusedFiles=require('./cleanUnusedFiles')
 // app.use(cors());
 app.use(cors({ origin: "*" }));
 app.use(express.json());
@@ -57,3 +57,17 @@ console.log(
   "ENCRYPTION_ENABLED === 'true':",
   process.env.ENCRYPTION_ENABLED === "true"
 );
+async function startServer() {
+  console.log("🕒 Starting cleanup before server launch...");
+  await cleanUnusedFiles(); // await so logs are printed before server starts
+
+  app.listen(PORT, () => {
+    console.log(`Server started on http://${IP}:${PORT}`);
+  });
+}
+
+startServer();
+cron.schedule("0 * * * *", () => {
+  console.log("🕑 Running auto-clean job...");
+  cleanUnusedFiles();
+});

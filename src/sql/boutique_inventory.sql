@@ -4,7 +4,7 @@ CREATE TABLE boutique_inventory (
     product_code VARCHAR(100) UNIQUE,
     category VARCHAR(100),
     description TEXT,
-    image TEXT,
+    images JSON,  
     price INT NOT NULL,              -- Changed from DECIMAL(10, 2) to INT
     discount INT DEFAULT 0,          -- Changed from DECIMAL(5, 2) to INT
     Bulk_discount INT DEFAULT 0,  

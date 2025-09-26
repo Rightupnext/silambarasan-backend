@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const productController = require("../controllers/productController");
-const { upload, processImage } = require("../middleware/upload");
+const { upload, processImages } = require("../middleware/upload");
 const { authenticate } = require("../middleware/authMiddleware");
 const { authorizeRoles } = require("../middleware/roleMiddleware");
 const {
@@ -24,8 +24,8 @@ router.get("/", ...withEncryption(productController.getAllProducts));
 // Protected routes with authentication, authorization and conditional encryption
 router.post(
   "/",
-  upload.single("image"),
-  processImage,
+   upload.array("images", 5),
+  processImages,
   authenticate,
   authorizeRoles("admin"),
   ...withEncryption(productController.createProductWithVariants)
@@ -33,8 +33,8 @@ router.post(
 
 router.put(
   "/:id",
-  upload.single("image"),
-  processImage,
+   upload.array("images", 5),
+  processImages,
   authenticate,
   authorizeRoles("admin"),
   ...withEncryption(productController.updateProductWithVariants)

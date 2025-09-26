@@ -3,6 +3,7 @@ const fsSync = require("fs");
 const path = require("path");
 const db = require("../db");
 
+// ---------------- Create Product ----------------
 exports.createProductWithVariants = async (req, res) => {
   const {
     product_name,
@@ -10,26 +11,21 @@ exports.createProductWithVariants = async (req, res) => {
     category,
     description,
     price,
-    discount,
-    trend,
-    Bulk_discount,
+    discount = 0,
+    Bulk_discount = 0,
+    trend = "regular",
     offerExpiry,
     variants,
   } = req.body;
 
-  const image = req.imageFilename || null;
-
-  // console.log("image", image);
+  const images = req.imageFilenames || []; // array of 1–5 images
   let parsedVariants = [];
   try {
-    parsedVariants =
-      typeof variants === "string" ? JSON.parse(variants) : variants;
+    parsedVariants = typeof variants === "string" ? JSON.parse(variants) : variants;
     if (!Array.isArray(parsedVariants))
       throw new Error("Variants must be an array");
   } catch (err) {
-    return res
-      .status(400)
-      .json({ error: "Invalid variants format. Must be valid JSON array." });
+    return res.status(400).json({ error: "Invalid variants format. Must be JSON array." });
   }
 
   const connection = await db.getConnection();
@@ -38,33 +34,26 @@ exports.createProductWithVariants = async (req, res) => {
 
     const [productResult] = await connection.query(
       `INSERT INTO boutique_inventory 
-   (product_name, product_code, category, description, image, price, discount, offerExpiry, trend, Bulk_discount) 
-   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (product_name, product_code, category, description, images, price, discount, offerExpiry, trend, Bulk_discount) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         product_name,
         product_code,
         category,
         description,
-        image,
+        JSON.stringify(images), // store as JSON
         price,
         discount,
-        JSON.stringify(offerExpiry),
+        JSON.stringify(offerExpiry || []),
         trend,
         Bulk_discount,
       ]
     );
 
-
     const productId = productResult.insertId;
 
-    const validVariants = parsedVariants.filter(
-      (v) => v.color && v.size && typeof v.quantity !== "undefined"
-    );
-
-    const variantInsertPromises = validVariants.map((variant) => {
-      const sizeString = Array.isArray(variant.size)
-        ? variant.size.join(",")
-        : String(variant.size);
+    const variantPromises = parsedVariants.map((variant) => {
+      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size;
       return connection.query(
         `INSERT INTO inventory_variants (product_id, color, size, quantity)
          VALUES (?, ?, ?, ?)`,
@@ -72,17 +61,20 @@ exports.createProductWithVariants = async (req, res) => {
       );
     });
 
-    await Promise.all(variantInsertPromises);
+    await Promise.all(variantPromises);
     await connection.commit();
+
     res.status(201).json({ message: "Product and variants added", productId });
-  } catch (error) {
+  } catch (err) {
     await connection.rollback();
-    res.status(500).json({ error: error.message });
+    console.error(err.message);
+    res.status(500).json({ error: err.message });
   } finally {
     connection.release();
   }
 };
 
+// ---------------- Update Product ----------------
 exports.updateProductWithVariants = async (req, res) => {
   const { id } = req.params;
   const {
@@ -91,16 +83,28 @@ exports.updateProductWithVariants = async (req, res) => {
     category,
     description,
     price,
-    discount,
-    Bulk_discount,
+    discount = 0,
+    Bulk_discount = 0,
+    trend = "regular",
     offerExpiry,
-    trend,
     variants,
-    existingImage,
+    existingImages, // JSON array
   } = req.body;
 
   const uploadDir = path.join(__dirname, "../../uploads/products");
-  const newImage = req.imageFilename || null; // multer saved filename
+  let existingImagesArray = [];
+
+  if (existingImages) {
+    try {
+      existingImagesArray =
+        typeof existingImages === "string" ? JSON.parse(existingImages) : existingImages;
+      if (!Array.isArray(existingImagesArray)) existingImagesArray = [];
+    } catch {
+      existingImagesArray = [];
+    }
+  }
+
+  const newImages = req.imageFilenames || [];
   let parsedVariants = [];
 
   const connection = await db.getConnection();
@@ -108,9 +112,9 @@ exports.updateProductWithVariants = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. Fetch old product details
+    // 1. Fetch old images
     const [rows] = await connection.query(
-      `SELECT image FROM boutique_inventory WHERE id = ?`,
+      `SELECT images FROM boutique_inventory WHERE id = ?`,
       [id]
     );
 
@@ -119,84 +123,41 @@ exports.updateProductWithVariants = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // Normalize old DB image (remove any "products/" prefix)
-    const oldImage = rows[0].image
-      ? rows[0].image.replace(/^products\//, "").trim()
-      : null;
-
-    let finalImage = oldImage;
-
-    // 2. Handle image update logic
-    if (newImage) {
-      // Case A: new upload → delete old
-      if (oldImage) {
-        const oldImagePath = path.join(uploadDir, oldImage);
-        console.log("🔍 Trying to delete old image:", oldImagePath);
-        if (fsSync.existsSync(oldImagePath)) {
-          try {
-            await fs.unlink(oldImagePath);
-            console.log("🗑 Deleted old image:", oldImagePath);
-          } catch (err) {
-            console.warn("⚠️ Failed to delete old image:", err.message);
-          }
-        } else {
-          console.log("⚠️ Old image not found:", oldImagePath);
-        }
-      }
-      finalImage = newImage;
-    } else if (existingImage) {
-      // Case B: frontend kept an existing image
-      const normalizedExisting = existingImage
-        .replace(/^products\//, "")
-        .trim();
-
-      if (oldImage && oldImage !== normalizedExisting) {
-        const oldImagePath = path.join(uploadDir, oldImage);
-        console.log("🔍 Trying to delete replaced image:", oldImagePath);
-        if (fsSync.existsSync(oldImagePath)) {
-          try {
-            await fs.unlink(oldImagePath);
-            console.log("🗑 Deleted replaced image:", oldImagePath);
-          } catch (err) {
-            console.warn("⚠️ Failed to delete replaced image:", err.message);
-          }
-        } else {
-          console.log("⚠️ Replaced image not found:", oldImagePath);
-        }
-      }
-      finalImage = normalizedExisting;
-    } else {
-      // Case C: nothing given → fallback to old
-      finalImage = oldImage;
+    let oldImagesArray = [];
+    try {
+      oldImagesArray = JSON.parse(rows[0].images || "[]");
+    } catch {
+      oldImagesArray = [];
     }
 
-    // 3. Normalize offerExpiry
-    let finalOfferExpiry = null;
-    if (offerExpiry) {
-      if (Array.isArray(offerExpiry)) {
-        finalOfferExpiry = JSON.stringify(offerExpiry);
-      } else if (typeof offerExpiry === "string") {
-        try {
-          JSON.parse(offerExpiry);
-          finalOfferExpiry = offerExpiry;
-        } catch {
-          finalOfferExpiry = JSON.stringify([offerExpiry]);
-        }
+    // 2. Delete removed images from local folder
+    const imagesToDelete = oldImagesArray.filter(img => !existingImagesArray.includes(img));
+    for (const img of imagesToDelete) {
+      const imgPath = path.join(uploadDir, img.replace(/^products\//, ""));
+      if (fsSync.existsSync(imgPath)) {
+        await fs.promises.unlink(imgPath);
+        console.log("🗑 Deleted:", img);
       }
     }
 
-    // 4. Update product info
+    // 3. Combine existing and new images
+    const finalImagesArray = [...existingImagesArray, ...newImages];
+
+    // 4. Parse offerExpiry
+    let finalOfferExpiry = offerExpiry ? JSON.stringify(offerExpiry) : null;
+
+    // 5. Update product
     await connection.query(
-      `UPDATE boutique_inventory 
-       SET product_name = ?, product_code = ?, category = ?, description = ?, 
-           image = ?, price = ?, discount = ?, Bulk_discount = ?, offerExpiry = ?, trend = ?
-       WHERE id = ?`,
+      `UPDATE boutique_inventory
+       SET product_name=?, product_code=?, category=?, description=?,
+           images=?, price=?, discount=?, Bulk_discount=?, offerExpiry=?, trend=?
+       WHERE id=?`,
       [
         product_name,
         product_code,
         category,
         description,
-        finalImage,
+        JSON.stringify(finalImagesArray),
         price,
         discount,
         Bulk_discount,
@@ -206,26 +167,14 @@ exports.updateProductWithVariants = async (req, res) => {
       ]
     );
 
-    // 5. Parse and update variants
-    parsedVariants =
-      typeof variants === "string" ? JSON.parse(variants) : variants;
+    // 6. Update variants
+    parsedVariants = typeof variants === "string" ? JSON.parse(variants) : variants;
+    if (!Array.isArray(parsedVariants)) throw new Error("Variants must be array");
 
-    if (!Array.isArray(parsedVariants)) {
-      throw new Error("Variants must be an array");
-    }
+    await connection.query(`DELETE FROM inventory_variants WHERE product_id = ?`, [id]);
 
-    // Delete old variants
-    await connection.query(
-      `DELETE FROM inventory_variants WHERE product_id = ?`,
-      [id]
-    );
-
-    // Insert new variants
     for (const variant of parsedVariants) {
-      const sizeString = Array.isArray(variant.size)
-        ? variant.size.join(",")
-        : String(variant.size);
-
+      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size;
       await connection.query(
         `INSERT INTO inventory_variants (product_id, color, size, quantity)
          VALUES (?, ?, ?, ?)`,
@@ -233,17 +182,16 @@ exports.updateProductWithVariants = async (req, res) => {
       );
     }
 
-    // Commit transaction
     await connection.commit();
 
     res.json({
       message: "✅ Product and variants updated successfully",
-      image: finalImage,
+      images: finalImagesArray,
     });
-  } catch (error) {
+  } catch (err) {
     await connection.rollback();
-    console.error("❌ Update failed:", error.message);
-    res.status(500).json({ error: error.message });
+    console.error(err.message);
+    res.status(500).json({ error: err.message });
   } finally {
     connection.release();
   }
