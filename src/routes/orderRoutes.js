@@ -7,7 +7,7 @@ const {
   decryptMiddleware,
   wrapEncryptedHandler,
 } = require("../middleware/encryption");
-
+const { initiatePayment, createOrder, getOrderStatus, refundPayment } =require("../controllers/phonepeController.js");
 const isEncryptionEnabled = process.env.ENCRYPTION_ENABLED === "true";
 
 const withEncryption = (handler) =>
@@ -54,5 +54,8 @@ router.put(
   authorizeRoles('admin', 'super-admin', 'D-partner'),
   ...withEncryption(orderController.clientUpdateOrderIssue)
 );
-
+router.get("/pay", initiatePayment);
+router.get("/order", createOrder);
+router.get("/status/:orderId", getOrderStatus);
+router.post("/refund", refundPayment);
 module.exports = router;

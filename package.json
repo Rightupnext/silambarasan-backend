@@ -21,7 +21,10 @@
         "node-cron": "^4.2.1",
         "nodemon": "^3.1.10",
         "path": "^0.12.7",
+        "pg-sdk-node": "https://phonepe.mycloudrepo.io/public/repositories/phonepe-pg-sdk-node/releases/v2/phonepe-pg-sdk-node.tgz",
         "razorpay": "^2.9.6",
-        "sharp": "^0.34.2"
+        "sha256": "^0.2.0",
+        "sharp": "^0.34.2",
+        "uniqid": "^5.4.0"
     }
 }

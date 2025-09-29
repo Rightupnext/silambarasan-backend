@@ -1,9 +1,10 @@
 // controllers/orderController.js
 const db = require("../db");
-const crypto = require("crypto");
 require("dotenv").config();
 const Razorpay = require("razorpay");
-
+const { CreateSdkOrderRequest,crypto } = require("pg-sdk-node");
+const { randomUUID } = require("crypto");
+const phonepeClient = require("../middleware/phonepeClient");
 const razorpay = new Razorpay({
   key_id: process.env.RAZORPAY_KEY_ID,
   key_secret: process.env.RAZORPAY_KEY_SECRET,
@@ -11,92 +12,45 @@ const razorpay = new Razorpay({
 
 // CREATE Razorpay Order and Save Temp Order with failed status
 exports.createOrder = async (req, res) => {
-  const { customer, cartItems, subtotal, shipping, tax, total } = req.body;
-
   try {
-    const razorOrder = await razorpay.orders.create({
-      amount: total * 100, // in paise
-      currency: "INR",
-      receipt: "receipt_order_" + Date.now(),
+    const { customer, amount } = req.body; // amount in paisa
+    const merchantOrderId = randomUUID();
+
+    // Must be HTTPS + public URL (ngrok for local testing)
+    const redirectUrl = process.env.PHONEPE_REDIRECT_URL;
+
+    const request = CreateSdkOrderRequest.StandardCheckoutBuilder()
+      .merchantOrderId(merchantOrderId)
+      .amount(amount)
+      .redirectUrl(redirectUrl)
+      .build();
+
+    const response = await phonepeClient.createSdkOrder(request);
+
+    res.json({
+      merchantOrderId,
+      token: response.token,
+      checkoutUrl: `https://sandbox-dashboard.phonepe.com/standard-checkout?token=${response.token}`
     });
-
-    // Save to DB with default razor_payment = 'failed'
-    await db.query(
-      `
-      INSERT INTO full_orders (
-        customer_id, customer_name, customer_email, customer_phone, customer_address,
-        subtotal, shipping, tax, total,
-        razorpay_order_id,
-        cart_items,
-        razor_payment
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        customer.id,
-        customer.name,
-        customer.email,
-        customer.phone,
-        customer.address,
-        subtotal,
-        shipping,
-        tax,
-        total,
-        razorOrder.id,
-        JSON.stringify(cartItems),
-        "failed",
-      ]
-    );
-
-    res.json(razorOrder);
   } catch (err) {
-    console.error("Create Order Error:", err);
-    res.status(500).json({ error: "Failed to create order" });
+    console.error("PhonePe Create Order Error:", err.message || err);
+    res.status(500).json({ error: "Failed to create PhonePe order" });
   }
 };
 
-// CONFIRM Order After Payment
+// Confirm Order
 exports.confirmOrder = async (req, res) => {
-  const { paymentDetails } = req.body;
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } =
-    paymentDetails;
-
   try {
-    // Step 1: Verify Razorpay signature
-    const hmac = crypto
-      .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET)
-      .update(`${razorpay_order_id}|${razorpay_payment_id}`)
-      .digest("hex");
-
-    if (hmac !== razorpay_signature) {
-      // Invalid signature - delete the order
-      await db.query("DELETE FROM full_orders WHERE razorpay_order_id = ?", [
-        razorpay_order_id,
-      ]);
-      return res
-        .status(400)
-        .json({ error: "Invalid payment signature. Order deleted." });
-    }
-
-    // Step 2: Generate 4-digit OTP
-    const otp = Math.floor(1000 + Math.random() * 9000).toString();
-
-    // Step 3: Update the order with payment details and OTP
-    await db.query(
-      `UPDATE full_orders
-       SET razorpay_payment_id = ?, 
-           razorpay_signature = ?, 
-           razor_payment = 'done',
-           otp = ?
-       WHERE razorpay_order_id = ?`,
-      [razorpay_payment_id, razorpay_signature, otp, razorpay_order_id]
-    );
-
+    const { merchantOrderId } = req.body;
+    const response = await phonepeClient.getOrderStatus(merchantOrderId);
     res.json({
-      message: "Order confirmed, payment successful.",
-      otp,
+      merchantOrderId,
+      state: response.state,
+      paymentDetails: response.paymentDetails
     });
   } catch (err) {
-    console.error("Confirm Order Error:", err);
-    res.status(500).json({ error: "Failed to confirm order" });
+    console.error("PhonePe Verify Order Error:", err.message || err);
+    res.status(500).json({ error: "Failed to verify PhonePe order" });
   }
 };
 
