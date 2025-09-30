@@ -19,12 +19,15 @@
         "multer": "^2.0.1",
         "mysql2": "^3.14.1",
         "node-cron": "^4.2.1",
+        "node-fetch": "^2.7.0",
         "nodemon": "^3.1.10",
         "path": "^0.12.7",
         "pg-sdk-node": "https://phonepe.mycloudrepo.io/public/repositories/phonepe-pg-sdk-node/releases/v2/phonepe-pg-sdk-node.tgz",
+        "qrcode": "^1.5.4",
         "razorpay": "^2.9.6",
         "sha256": "^0.2.0",
         "sharp": "^0.34.2",
-        "uniqid": "^5.4.0"
+        "uniqid": "^5.4.0",
+        "uuid": "^13.0.0"
     }
 }

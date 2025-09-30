@@ -14,17 +14,22 @@ CREATE TABLE full_orders (
   tax DECIMAL(10,2),
   total DECIMAL(10,2),
 
-  -- Payment Info
+  -- Payment Info (Razorpay)
   razorpay_payment_id TEXT,
   razorpay_order_id TEXT,
   razorpay_signature TEXT,
   razor_payment ENUM('done', 'failed') DEFAULT 'failed',
 
+  -- Payment Info (PhonePe)
+  phonepe_order_id TEXT,
+  phonepe_token TEXT,
+  phonepe_payment_status ENUM('pending', 'done', 'failed') DEFAULT 'pending',
+
   -- Cart
   cart_items JSON,
   Barcode JSON,
   -- Delivery & Issue Info
-  order_status ENUM('pending', 'packed', 'shipped', 'delivered','received','damaged','returned' ,'order-cancelled') DEFAULT 'pending',
+  order_status ENUM('pending', 'packed', 'shipped', 'delivered','received','damaged','returned','order-cancelled') DEFAULT 'pending',
   deliveryman_name TEXT,
   deliveryman_phone TEXT,
   issue_type ENUM('damaged', 'wrong-item-received', 'other','return') DEFAULT NULL,

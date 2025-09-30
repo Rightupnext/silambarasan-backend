@@ -7,7 +7,7 @@ const {
   decryptMiddleware,
   wrapEncryptedHandler,
 } = require("../middleware/encryption");
-const { initiatePayment, createOrder, getOrderStatus, refundPayment } =require("../controllers/phonepeController.js");
+const { initiatePayment, createOrder, getOrderStatus, refundPayment,confirmOrder } =require("../controllers/phonepeController.js");
 const isEncryptionEnabled = process.env.ENCRYPTION_ENABLED === "true";
 
 const withEncryption = (handler) =>
@@ -16,8 +16,8 @@ const withEncryption = (handler) =>
     : [handler];
 
 // Public routes without auth or encryption
-router.post("/create-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.createOrder));
-router.post("/confirm-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.confirmOrder));
+// router.post("/create-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.createOrder));
+// router.post("/confirm-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.confirmOrder));
 
 // Protected routes with conditional encryption and authentication
 
@@ -54,8 +54,9 @@ router.put(
   authorizeRoles('admin', 'super-admin', 'D-partner'),
   ...withEncryption(orderController.clientUpdateOrderIssue)
 );
+router.post("/create-order", createOrder);
 router.get("/pay", initiatePayment);
-router.get("/order", createOrder);
 router.get("/status/:orderId", getOrderStatus);
+router.post("/confirm-order", confirmOrder);
 router.post("/refund", refundPayment);
 module.exports = router;
