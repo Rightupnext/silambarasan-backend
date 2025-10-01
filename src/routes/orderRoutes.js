@@ -7,7 +7,7 @@ const {
   decryptMiddleware,
   wrapEncryptedHandler,
 } = require("../middleware/encryption");
-const { initiatePayment, createOrder, getOrderStatus, refundPayment,confirmOrder } =require("../controllers/phonepeController.js");
+const { initiatePayment, paymentSuccess } =require("../controllers/phonepeController.js");
 const isEncryptionEnabled = process.env.ENCRYPTION_ENABLED === "true";
 
 const withEncryption = (handler) =>
@@ -15,9 +15,6 @@ const withEncryption = (handler) =>
     ? [decryptMiddleware, wrapEncryptedHandler(handler)]
     : [handler];
 
-// Public routes without auth or encryption
-// router.post("/create-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.createOrder));
-// router.post("/confirm-order", authenticate, authorizeRoles('admin', 'super-admin', 'customer', 'D-partner'), ...withEncryption(orderController.confirmOrder));
 
 // Protected routes with conditional encryption and authentication
 
@@ -54,9 +51,9 @@ router.put(
   authorizeRoles('admin', 'super-admin', 'D-partner'),
   ...withEncryption(orderController.clientUpdateOrderIssue)
 );
-router.post("/create-order", createOrder);
-router.get("/pay", initiatePayment);
-router.get("/status/:orderId", getOrderStatus);
-router.post("/confirm-order", confirmOrder);
-router.post("/refund", refundPayment);
+// Initiate PhonePe payment
+router.post("/initiate", initiatePayment);
+
+// Save order after payment success
+router.post("/payment-success", paymentSuccess);
 module.exports = router;
