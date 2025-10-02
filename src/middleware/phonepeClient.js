@@ -14,4 +14,4 @@ const phonePeClient = StandardCheckoutClient.getInstance(
   env
 );
 
-module.exports = phonePeClient;
+module.exports = { phonePeClient };
