@@ -1,5 +1,9 @@
 // controllers/orderController.js
-const { MetaInfo, StandardCheckoutPayRequest } = require("pg-sdk-node");
+const { 
+  MetaInfo, 
+  StandardCheckoutPayRequest, 
+  StandardCheckoutPayStatusRequest  
+} = require("pg-sdk-node");
 const { randomUUID } = require("crypto");
 const { phonePeClient } = require("../middleware/phonepeClient");
 const db = require("../db");
@@ -71,7 +75,7 @@ exports.paymentSuccess = async (req, res) => {
         shipping || 0,
         tax || 0,
         total || 0,
-        "done", // mark as success
+        "done",
         JSON.stringify(cartItems),
         phonepe_order_id,
       ]
@@ -84,21 +88,39 @@ exports.paymentSuccess = async (req, res) => {
   }
 };
 
-// Payment verification
-exports.paymentCallback = async (req, res) => {
-  const { orderId } = req.query;
+// 3️⃣ Payment verification
+exports.verifyPaymentStatus = async (req, res) => {
+  try {
+    const { orderId } = req.query;
+    if (!orderId) {
+      return res.status(400).json({ status: "failed", message: "Missing orderId" });
+    }
 
-  if (!orderId) {
-    return res
-      .status(400)
-      .json({ status: "failed", message: "Payment failed or canceled" });
+    const response = await phonePeClient.getOrderStatus(orderId);
+    console.log("PhonePe order status response:", response);
+
+    // Use `state` from the response
+    const orderState = response?.state;
+    const paymentState = response?.paymentDetails?.[0]?.state; // fallback to first payment
+
+    if (orderState === "COMPLETED" || paymentState === "COMPLETED") {
+      // Mark order as done in DB
+      await db.query(
+        "UPDATE full_orders SET phonepe_payment_status='done' WHERE phonepe_order_id=?",
+        [orderId]
+      );
+      return res.json({ status: "done", message: "Payment successful" });
+    } else if (orderState === "FAILED" || paymentState === "FAILED") {
+      return res.json({ status: "failed", message: "Payment failed" });
+    } else {
+      return res.json({ status: "pending", message: "Payment not completed or expired" });
+    }
+  } catch (err) {
+    console.error("Payment verification failed:", err);
+    return res.status(500).json({ status: "failed", message: "Internal server error" });
   }
-
-  // If orderId exists => success
-  await db.query(
-    "UPDATE full_orders SET phonepe_payment_status='done' WHERE phonepe_order_id=?",
-    [orderId]
-  );
-
-  res.json({ status: "done", orderId });
 };
+
+
+
+

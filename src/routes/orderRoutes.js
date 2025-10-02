@@ -7,7 +7,7 @@ const {
   decryptMiddleware,
   wrapEncryptedHandler,
 } = require("../middleware/encryption");
-const { initiatePayment, paymentSuccess } =require("../controllers/phonepeController.js");
+const { initiatePayment, paymentSuccess,verifyPaymentStatus } =require("../controllers/phonepeController.js");
 const isEncryptionEnabled = process.env.ENCRYPTION_ENABLED === "true";
 
 const withEncryption = (handler) =>
@@ -56,4 +56,5 @@ router.post("/initiate", initiatePayment);
 
 // Save order after payment success
 router.post("/payment-success", paymentSuccess);
+router.get("/verify", verifyPaymentStatus);
 module.exports = router;
