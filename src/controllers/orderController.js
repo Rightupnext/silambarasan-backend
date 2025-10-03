@@ -231,14 +231,14 @@ exports.getOrderAnalytics = async (req, res) => {
     const [statusResults] = await db.query(`
       SELECT order_status, COUNT(*) as count, SUM(total) as totalAmount
       FROM full_orders
-      WHERE razor_payment = 'done' ${dateFilter}
+      WHERE phonepe_payment_status = 'done' ${dateFilter}
       GROUP BY order_status
     `);
 
     const [overall] = await db.query(`
       SELECT COUNT(*) as totalOrders, SUM(total) as totalRevenue
       FROM full_orders
-      WHERE razor_payment = 'done' ${dateFilter}
+      WHERE phonepe_payment_status = 'done' ${dateFilter}
     `);
 
     const [paymentHistory] = await db.query(`
@@ -247,7 +247,7 @@ exports.getOrderAnalytics = async (req, res) => {
         COUNT(*) AS orders,
         SUM(total) AS totalAmount
       FROM full_orders
-      WHERE razor_payment = 'done' ${dateFilter}
+      WHERE phonepe_payment_status = 'done' ${dateFilter}
       GROUP BY DATE(created_at)
       ORDER BY date DESC
     `);
