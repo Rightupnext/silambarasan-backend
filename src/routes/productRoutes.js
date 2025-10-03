@@ -24,7 +24,7 @@ router.get("/", ...withEncryption(productController.getAllProducts));
 // Protected routes with authentication, authorization and conditional encryption
 router.post(
   "/",
-   upload.array("images", 5),
+  upload.array("images", 5),
   processImages,
   authenticate,
   authorizeRoles("admin"),
@@ -33,7 +33,7 @@ router.post(
 
 router.put(
   "/:id",
-   upload.array("images", 5),
+  upload.array("images", 5),
   processImages,
   authenticate,
   authorizeRoles("admin"),
@@ -41,10 +41,22 @@ router.put(
 );
 
 router.delete(
-  "/:id",
+  "/permanantly-delete/:id",
   authenticate,
   authorizeRoles("admin"),
-  ...withEncryption(productController.deleteProduct)
+  ...withEncryption(productController.PermenantlydeleteProduct)
+);
+router.patch(
+  "/soft-delete/:id",
+  authenticate,
+  authorizeRoles("admin"),
+  ...withEncryption(productController.softDeleteProduct)
+);
+router.patch(
+  "/restore/:id",
+  authenticate,
+  authorizeRoles("admin"),
+  ...withEncryption(productController.restoreProduct)
 );
 
 module.exports = router;

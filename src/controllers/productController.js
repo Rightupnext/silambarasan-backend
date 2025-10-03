@@ -223,7 +223,7 @@ exports.getAllProducts = async (req, res) => {
   }
 };
 
-exports.deleteProduct = async (req, res) => {
+exports.PermenantlydeleteProduct = async (req, res) => {
   const { id } = req.params;
   const uploadDir = path.join(__dirname, "../../uploads/products");
 
@@ -263,6 +263,47 @@ exports.deleteProduct = async (req, res) => {
 
   } catch (error) {
     console.error("❌ Deletion failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.softDeleteProduct = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Check if product exists
+    const [rows] = await db.query(
+      `SELECT id FROM boutique_inventory WHERE id = ?`,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    // Soft delete
+    await db.query(
+      `UPDATE boutique_inventory SET is_deleted = 1 WHERE id = ?`,
+      [id]
+    );
+
+    res.json({ message: "✅ Product hidden successfully (soft deleted)" });
+  } catch (error) {
+    console.error("❌ Soft delete failed:", error.message);
+    res.status(500).json({ error: error.message });
+  }
+};
+exports.restoreProduct = async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await db.query(
+      `UPDATE boutique_inventory SET is_deleted = 0 WHERE id = ?`,
+      [id]
+    );
+
+    res.json({ message: "✅ Product restored successfully" });
+  } catch (error) {
+    console.error("❌ Restore failed:", error.message);
     res.status(500).json({ error: error.message });
   }
 };

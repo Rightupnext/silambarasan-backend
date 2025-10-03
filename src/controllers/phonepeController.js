@@ -59,29 +59,69 @@ exports.paymentSuccess = async (req, res) => {
     if (!customer || !cartItems || !phonepe_order_id)
       return res.status(400).json({ error: "Missing required data" });
 
-    // Update the pending order as successful
-    await db.query(
-      `UPDATE full_orders 
-       SET customer_id=?, customer_name=?, customer_email=?, customer_phone=?, customer_address=?,
-           subtotal=?, shipping=?, tax=?, total=?, phonepe_payment_status=?, cart_items=? 
-       WHERE phonepe_order_id=?`,
-      [
-        customer.id || null,
-        customer.name || "",
-        customer.email || "",
-        customer.phone || "",
-        customer.address || "",
-        subtotal || 0,
-        shipping || 0,
-        tax || 0,
-        total || 0,
-        "done",
-        JSON.stringify(cartItems),
-        phonepe_order_id,
-      ]
-    );
+    // Start a transaction
+    const connection = await db.getConnection();
+    await connection.beginTransaction();
 
-    res.json({ message: "Order saved and payment verified successfully" });
+    try {
+      // 1. Update the pending order as successful
+      await connection.query(
+        `UPDATE full_orders 
+         SET customer_id=?, customer_name=?, customer_email=?, customer_phone=?, customer_address=?,
+             subtotal=?, shipping=?, tax=?, total=?, phonepe_payment_status=?, cart_items=? 
+         WHERE phonepe_order_id=?`,
+        [
+          customer.id || null,
+          customer.name || "",
+          customer.email || "",
+          customer.phone || "",
+          customer.address || "",
+          subtotal || 0,
+          shipping || 0,
+          tax || 0,
+          total || 0,
+          "done",
+          JSON.stringify(cartItems),
+          phonepe_order_id,
+        ]
+      );
+
+      // 2. Reduce quantity in inventory_variants for each cart item
+      for (const item of cartItems) {
+        const { id: productId, selectedColor, selectedSize, quantity } = item;
+        console.log("cartItems", productId, selectedColor, selectedSize, quantity)
+
+        // Get current quantity
+        const [rows] = await connection.query(
+          `SELECT quantity FROM inventory_variants 
+           WHERE product_id = ? AND color = ? AND size = ?`,
+          [productId, selectedColor, selectedSize]
+        );
+
+        if (rows.length === 0) continue; // variant not found
+
+        const currentQty = rows[0].quantity;
+        const newQty = Math.max(currentQty - quantity, 0);
+
+        // Update quantity
+        await connection.query(
+          `UPDATE inventory_variants 
+           SET quantity = ? 
+           WHERE product_id = ? AND color = ? AND size = ?`,
+          [newQty, productId, selectedColor, selectedSize]
+        );
+      }
+
+      // Commit transaction
+      await connection.commit();
+      connection.release();
+
+      res.json({ message: "Order saved, payment verified, and inventory updated successfully" });
+    } catch (err) {
+      await connection.rollback();
+      connection.release();
+      throw err;
+    }
   } catch (err) {
     console.error("Failed to save order:", err);
     res.status(500).json({ error: "Failed to save order" });
