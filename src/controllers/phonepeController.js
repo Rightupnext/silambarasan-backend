@@ -1,8 +1,8 @@
 // controllers/orderController.js
-const { 
-  MetaInfo, 
-  StandardCheckoutPayRequest, 
-  StandardCheckoutPayStatusRequest  
+const {
+  MetaInfo,
+  StandardCheckoutPayRequest,
+  StandardCheckoutPayStatusRequest
 } = require("pg-sdk-node");
 const { randomUUID } = require("crypto");
 const { phonePeClient } = require("../middleware/phonepeClient");
@@ -67,7 +67,7 @@ exports.paymentSuccess = async (req, res) => {
       // 1. Update the pending order as successful
       await connection.query(
         `UPDATE full_orders 
-         SET customer_id=?, customer_name=?, customer_email=?, customer_phone=?, customer_address=?,
+         SET customer_id=?, customer_name=?, customer_email=?, customer_phone=?, customer_address=?,state=?, city=?, pin=?,
              subtotal=?, shipping=?, tax=?, total=?, phonepe_payment_status=?, cart_items=? 
          WHERE phonepe_order_id=?`,
         [
@@ -76,6 +76,9 @@ exports.paymentSuccess = async (req, res) => {
           customer.email || "",
           customer.phone || "",
           customer.address || "",
+          customer.state || "",   // new
+          customer.city || "",    // new
+          customer.pin || "",     // new
           subtotal || 0,
           shipping || 0,
           tax || 0,

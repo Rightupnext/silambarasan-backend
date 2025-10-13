@@ -7,6 +7,9 @@ CREATE TABLE full_orders (
   customer_email TEXT,
   customer_phone TEXT,
   customer_address TEXT,
+  state TEXT,
+  city TEXT,  
+  pin TEXT,
   otp TEXT,
   -- Order Info
   subtotal DECIMAL(10,2),
