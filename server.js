@@ -47,17 +47,17 @@ app.get("/", (req, res) => {
 
 const PORT = process.env.PORT || 5000;
 const IP = process.env.IP || "localhost";
-if (process.env.PHONEPE_ENV === "SANDBOX") {
-  // Run this block for sandbox
-  app.listen(PORT, IP, () => {
-    console.log(`Sandbox server running at http://${IP}:${PORT}/`);
-  });
-} else {
-  // Run this block for production or other environments
-  app.listen(PORT, () => {
-    console.log(`Production server running at http://localhost:${PORT}/`);
-  });
-}
+// if (process.env.PHONEPE_ENV === "SANDBOX") {
+//   // Run this block for sandbox
+//   app.listen(PORT, IP, () => {
+//     console.log(`Sandbox server running at http://${IP}:${PORT}/`);
+//   });
+// } else {
+//   // Run this block for production or other environments
+//   app.listen(PORT, () => {
+//     console.log(`Production server running at http://localhost:${PORT}/`);
+//   });
+// }
 
 console.log("ENV ENCRYPTION_ENABLED:", process.env.ENCRYPTION_ENABLED);
 console.log(
@@ -69,7 +69,7 @@ async function startServer() {
   await cleanUnusedFiles(); // await so logs are printed before server starts
 
   app.listen(PORT, () => {
-    console.log(`Server started on http://${IP}:${PORT}`);
+    console.log(`Server started on http://localhost:${PORT}`);
   });
 }
 
