@@ -1,10 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path"); // ✅ FIXED: Add this line
+const path = require("path");
 const cron = require("node-cron");
 require("dotenv").config();
+
 const app = express();
 
+// Import routes
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const HeroRoutes = require("./src/routes/heroRoutes");
@@ -12,11 +14,13 @@ const categoryRoutes = require("./src/routes/categoryRoutes");
 const productRoutes = require("./src/routes/productRoutes");
 const OrderRoutes = require("./src/routes/orderRoutes");
 const ReviewRoutes = require("./src/routes/reviewRoutes");
-const cleanUnusedFiles=require('./cleanUnusedFiles')
-// app.use(cors());
+const cleanUnusedFiles = require("./cleanUnusedFiles");
+
+// Middleware
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
+// Routes
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/hero", HeroRoutes);
@@ -25,56 +29,40 @@ app.use("/products", productRoutes);
 app.use("/order", OrderRoutes);
 app.use("/reviews", ReviewRoutes);
 
-app.use(
-  "/uploads/products",
-  express.static(path.join(__dirname, "uploads/products")) // ✅ FIXED
-);
-app.use(
-  "/uploads/hero",
-  express.static(path.join(__dirname, "uploads/hero")) // ✅ FIXED
-);
-app.use(
-  "/uploads/gifts",
-  express.static(path.join(__dirname, "uploads/gifts")) // ✅ FIXED
-);
-app.use(
-  "/uploads/barcodes",
-  express.static(path.join(__dirname, "uploads/barcodes")) // ✅ FIXED
-);
+// Static file serving
+app.use("/uploads/products", express.static(path.join(__dirname, "uploads/products")));
+app.use("/uploads/hero", express.static(path.join(__dirname, "uploads/hero")));
+app.use("/uploads/gifts", express.static(path.join(__dirname, "uploads/gifts")));
+app.use("/uploads/barcodes", express.static(path.join(__dirname, "uploads/barcodes")));
+
 app.get("/", (req, res) => {
   res.send("API Running...");
 });
 
+// Config
 const PORT = process.env.PORT || 5000;
-const IP = process.env.IP || "localhost";
-// if (process.env.PHONEPE_ENV === "SANDBOX") {
-//   // Run this block for sandbox
-//   app.listen(PORT, IP, () => {
-//     console.log(`Sandbox server running at http://${IP}:${PORT}/`);
-//   });
-// } else {
-//   // Run this block for production or other environments
-//   app.listen(PORT, () => {
-//     console.log(`Production server running at http://localhost:${PORT}/`);
-//   });
-// }
 
 console.log("ENV ENCRYPTION_ENABLED:", process.env.ENCRYPTION_ENABLED);
 console.log(
   "ENCRYPTION_ENABLED === 'true':",
   process.env.ENCRYPTION_ENABLED === "true"
 );
-// Cleanup before start
+
+// Start Server
 (async () => {
   console.log("🕒 Starting cleanup before server launch...");
-  await cleanUnusedFiles();
+  try {
+    await cleanUnusedFiles();
+  } catch (err) {
+    console.error("⚠️ Cleanup failed, continuing startup:", err);
+  }
 
-  server.listen(PORT, IP, () => {
-    console.log(`🚀 Server running at http://${IP}:${PORT}/`);
+  app.listen(PORT, () => {
+    console.log(`🚀 Server running on port ${PORT}`);
   });
 })();
 
-// Scheduled cleanup job every hour
+// Schedule auto-clean every hour
 cron.schedule("0 * * * *", () => {
   console.log("🕑 Running auto-clean job...");
   cleanUnusedFiles();
