@@ -27,57 +27,50 @@ const getNextHeroNumber = () => {
 
 // Use memory storage for multer
 const storage = multer.memoryStorage();
-exports.upload = multer({ storage });
+// ✅ No upload size limit
+exports.upload = multer({
+  storage,
+  limits: {}, // unlimited file size
+  fileFilter(req, file, cb) {
+    if (!file.mimetype.startsWith("image/")) {
+      return cb(new Error("Only image files allowed"), false);
+    }
+    cb(null, true);
+  }
+});
 
-// Upload hero image with optimization
 exports.uploadHeroImage = async (req, res) => {
   const file = req.file;
   const url = req.body.url || null;
   const size = req.body.size || null;
-  if (!file) return res.status(400).json({ message: 'No file uploaded' });
+  if (!file) return res.status(400).json({ message: "No file uploaded" });
 
   try {
-    const ext = path.extname(file.originalname).toLowerCase();
+    const mime = file.mimetype.toLowerCase();
     const nextNumber = getNextHeroNumber();
 
-    // Determine format and filename
-    const mime = file.mimetype.toLowerCase();
-    let format = 'jpeg';
-    let filename = `hero${nextNumber}.jpg`;
+    let ext = ".jpg";
+    if (mime.includes("png")) ext = ".png";
+    else if (mime.includes("webp")) ext = ".webp";
+    else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
 
-    if (mime.includes('png')) {
-      format = 'png';
-      filename = `hero${nextNumber}.png`;
-    } else if (mime.includes('webp')) {
-      format = 'webp';
-      filename = `hero${nextNumber}.webp`;
-    } else if (mime.includes('jpeg') || mime.includes('jpg')) {
-      format = 'jpeg';
-      filename = `hero${nextNumber}.jpg`;
-    }
-
+    const filename = `hero${nextNumber}${ext}`;
     const fullPath = path.join(uploadPath, filename);
 
-    // Ensure upload path exists
+    // Ensure upload folder exists
     await fsPromises.mkdir(uploadPath, { recursive: true });
 
-    // Optimize image using sharp
-    let transformer = sharp(file.buffer).resize({ width: 1280 });
-
-    if (format === 'jpeg') transformer = transformer.jpeg({ quality: 80 });
-    else if (format === 'png') transformer = transformer.png({ compressionLevel: 8 });
-    else if (format === 'webp') transformer = transformer.webp({ quality: 80 });
-
-    await transformer.toFile(fullPath);
+    // ✅ Save original file as-is (No sharp processing)
+    await fsPromises.writeFile(fullPath, file.buffer);
 
     // Save filename to DB
-    const sql = 'INSERT INTO hero_images (filename,url,size) VALUES (?, ?,?)';
-   await db.execute(sql, [filename, url,size]);
+    const sql = "INSERT INTO hero_images (filename, url, size) VALUES (?, ?, ?)";
+    await db.execute(sql, [filename, url, size]);
 
-    res.json({ message: 'Upload successful', filename, url,size });
+    res.json({ message: "Upload successful", filename, url, size });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: 'Error saving optimized image' });
+    res.status(500).json({ message: "Error saving original image" });
   }
 };
 
@@ -124,7 +117,7 @@ exports.updateHeroImage = async (req, res) => {
   const { id } = req.params;        // The hero image DB record id to update
   const url = req.body.url || null; // New URL (optional)
   const file = req.file;            // New uploaded image file (optional)
-const size = req.body.size || null;
+  const size = req.body.size || null;
   try {
     // Fetch existing record to get old filename
     const [rows] = await db.execute('SELECT filename FROM hero_images WHERE id = ?', [id]);
@@ -174,7 +167,7 @@ const size = req.body.size || null;
 
     // Update DB record with new filename (if changed) and new URL
     const sql = 'UPDATE hero_images SET filename = ?, url = ?, size=? WHERE id = ?';
-    await db.execute(sql, [filename, url,size, id]);
+    await db.execute(sql, [filename, url, size, id]);
 
     res.json({ message: 'Hero image updated successfully', filename, url });
   } catch (err) {

@@ -16,7 +16,7 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
+  limits: {}, // ✅ Removed file size limit (allow any size)
 });
 
 // MIME to extension map
@@ -29,7 +29,7 @@ const mimeToExtension = {
   "image/bmp": "bmp",
 };
 
-// ---------------- Image processing middleware ----------------
+// ---------------- Image processing middleware (ORIGINAL SIZE) ----------------
 const processImages = async (req, res, next) => {
   if (!req.files || !req.files.length) return next();
 
@@ -46,42 +46,17 @@ const processImages = async (req, res, next) => {
     const outputPath = path.join(outputDir, filename);
 
     try {
-      let buffer;
+      // ✅ Save original file buffer exactly as uploaded
+      fs.writeFileSync(outputPath, file.buffer);
 
-      const sharpInstance = sharp(file.buffer).resize({ width: 800, fit: "inside" });
-
-      switch (ext) {
-        case "jpg":
-        case "jpeg":
-          buffer = await sharpInstance.jpeg({ quality: 60, mozjpeg: true }).toBuffer();
-          break;
-        case "png":
-          buffer = await sharpInstance.png({ compressionLevel: 9, palette: true }).toBuffer();
-          break;
-        case "webp":
-          buffer = await sharpInstance.webp({ quality: 60 }).toBuffer();
-          break;
-        case "tiff":
-          buffer = await sharpInstance.tiff({ quality: 60 }).toBuffer();
-          break;
-        case "bmp":
-          buffer = await sharpInstance.bmp().toBuffer();
-          break;
-        case "gif":
-          fs.writeFileSync(outputPath, file.buffer);
-          savedImages.push(`products/${filename}`);
-          continue;
-      }
-
-      fs.writeFileSync(outputPath, buffer);
       savedImages.push(`products/${filename}`);
     } catch (err) {
-      console.error("❌ Image processing failed:", err.message);
+      console.error("❌ Image saving failed:", err.message);
       return next(err);
     }
   }
 
-  req.imageFilenames = savedImages; // attach array of filenames
+  req.imageFilenames = savedImages;
   next();
 };
 module.exports = { upload, processImages };
