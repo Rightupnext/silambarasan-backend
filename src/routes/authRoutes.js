@@ -16,8 +16,17 @@ const withEncryption = (handler) => {
   return [handler];
 };
 
-// 👤 Register and Login routes with conditional encryption
+// 👤 Normal User Registration
 router.post("/register", ...withEncryption(authController.register));
+
+// 💼 Affiliate Registration
+router.post("/register-affiliate", ...withEncryption(authController.registerAffiliate));
+
+// 🔐 Login Route
 router.post("/login", ...withEncryption(authController.login));
+
+router.post("/forgot-password", ...withEncryption(authController.forgotPassword));
+router.post("/verify-otp", ...withEncryption(authController.verifyOtp));
+router.post("/reset-password", ...withEncryption(authController.resetPassword));
 
 module.exports = router;
