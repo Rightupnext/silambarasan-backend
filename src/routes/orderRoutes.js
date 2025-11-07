@@ -52,9 +52,12 @@ router.put(
   ...withEncryption(orderController.clientUpdateOrderIssue)
 );
 // Initiate PhonePe payment
-router.post("/initiate", initiatePayment);
+router.post("/initiate",authenticate,
+  authorizeRoles('admin', 'super-admin','customer','D-partner'), ...withEncryption(initiatePayment));
 
 // Save order after payment success
-router.post("/payment-success", paymentSuccess);
-router.get("/verify", verifyPaymentStatus);
+router.post("/payment-success",authenticate,
+  authorizeRoles('admin', 'super-admin','customer','D-partner'), ...withEncryption( paymentSuccess));
+router.get("/verify",authenticate,
+  authorizeRoles('admin', 'super-admin','customer','D-partner'), ...withEncryption( verifyPaymentStatus));
 module.exports = router;

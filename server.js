@@ -1,13 +1,12 @@
 const express = require("express");
 const cors = require("cors");
-const path = require("path"); // ✅ FIXED: Add this line
+const path = require("path");
 const cron = require("node-cron");
 require("dotenv").config();
-const db = require("./src/db");
-
 
 const app = express();
 
+// Import routes
 const authRoutes = require("./src/routes/authRoutes");
 const userRoutes = require("./src/routes/userRoutes");
 const HeroRoutes = require("./src/routes/heroRoutes");
@@ -25,6 +24,7 @@ const commissionRoutes = require("./src/routes/commissionRoutes");
 app.use(cors({ origin: "*" }));
 app.use(express.json());
 
+// Routes
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
 app.use("/hero", HeroRoutes);
@@ -162,35 +162,30 @@ app.get("/", (req, res) => {
   res.send("API Running...");
 });
 
+// Config
 const PORT = process.env.PORT || 5000;
-const IP = process.env.IP || "localhost";
-if (process.env.PHONEPE_ENV === "SANDBOX") {
-  // Run this block for sandbox
-  app.listen(PORT, IP, () => {
-    console.log(`Sandbox server running at http://${IP}:${PORT}/`);
-  });
-} else {
-  // Run this block for production or other environments
-  app.listen(PORT, () => {
-    console.log(`Production server running at http://localhost:${PORT}/`);
-  });
-}
 
 console.log("ENV ENCRYPTION_ENABLED:", process.env.ENCRYPTION_ENABLED);
 console.log(
   "ENCRYPTION_ENABLED === 'true':",
   process.env.ENCRYPTION_ENABLED === "true"
 );
-async function startServer() {
+
+// Start Server
+(async () => {
   console.log("🕒 Starting cleanup before server launch...");
-  await cleanUnusedFiles(); // await so logs are printed before server starts
+  try {
+    await cleanUnusedFiles();
+  } catch (err) {
+    console.error("⚠️ Cleanup failed, continuing startup:", err);
+  }
 
   app.listen(PORT, () => {
-    console.log(`Server started on http://${IP}:${PORT}`);
+    console.log(`🚀 Server running on port ${PORT}`);
   });
-}
+})();
 
-startServer();
+// Schedule auto-clean every hour
 cron.schedule("0 * * * *", () => {
   console.log("🕑 Running auto-clean job...");
   cleanUnusedFiles();
