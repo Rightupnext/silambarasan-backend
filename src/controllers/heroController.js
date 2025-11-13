@@ -50,18 +50,38 @@ exports.uploadHeroImage = async (req, res) => {
     const nextNumber = getNextHeroNumber();
 
     let ext = ".jpg";
-    if (mime.includes("png")) ext = ".png";
-    else if (mime.includes("webp")) ext = ".webp";
-    else if (mime.includes("jpeg") || mime.includes("jpg")) ext = ".jpg";
+    let format = "jpeg";
+    if (mime.includes("png")) { ext = ".png"; format = "png"; }
+    else if (mime.includes("webp")) { ext = ".webp"; format = "webp"; }
 
     const filename = `hero${nextNumber}${ext}`;
     const fullPath = path.join(uploadPath, filename);
 
-    // Ensure upload folder exists
     await fsPromises.mkdir(uploadPath, { recursive: true });
 
-    // ✅ Save original file as-is (No sharp processing)
-    await fsPromises.writeFile(fullPath, file.buffer);
+    // ✅ Resize to approx 1 MP
+    // (sqrt(1,000,000 * aspect_ratio) → compute target width/height automatically)
+    const metadata = await sharp(file.buffer).metadata();
+    const aspectRatio = metadata.width / metadata.height;
+    const targetPixels = 1_000_000; // ~1 MP
+    const targetWidth = Math.round(Math.sqrt(targetPixels * aspectRatio));
+    const targetHeight = Math.round(targetWidth / aspectRatio);
+
+    let transformer = sharp(file.buffer)
+      .resize({
+        width: targetWidth,
+        height: targetHeight,
+        fit: 'inside',
+      });
+
+    if (format === 'jpeg')
+      transformer = transformer.jpeg({ quality: 80 });
+    else if (format === 'png')
+      transformer = transformer.png({ compressionLevel: 8 });
+    else if (format === 'webp')
+      transformer = transformer.webp({ quality: 80 });
+
+    await transformer.toFile(fullPath);
 
     // Save filename to DB
     const sql = "INSERT INTO hero_images (filename, url, size) VALUES (?, ?, ?)";
@@ -70,7 +90,7 @@ exports.uploadHeroImage = async (req, res) => {
     res.json({ message: "Upload successful", filename, url, size });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Error saving original image" });
+    res.status(500).json({ message: "Error saving optimized image" });
   }
 };
 
@@ -123,19 +143,17 @@ exports.updateHeroImage = async (req, res) => {
     const [rows] = await db.execute('SELECT filename FROM hero_images WHERE id = ?', [id]);
     if (rows.length === 0) {
       return res.status(404).json({ message: 'Hero image not found' });
-    }
-    const oldFilename = rows[0].filename;
-
+    }    const oldFilename = rows[0].filename;
     let filename = oldFilename;
 
     if (file) {
-      // If new file uploaded, delete old image file
+      // Delete old image file if exists
       const oldFilePath = path.join(uploadPath, oldFilename);
       if (fs.existsSync(oldFilePath)) {
         fs.unlinkSync(oldFilePath);
       }
 
-      // Determine new filename and format
+      // Determine new filename & format
       const mime = file.mimetype.toLowerCase();
       let format = 'jpeg';
 
@@ -149,15 +167,25 @@ exports.updateHeroImage = async (req, res) => {
         format = 'jpeg';
         filename = `hero${id}.jpg`;
       } else {
-        // Default fallback
         filename = `hero${id}.jpg`;
       }
 
       const fullPath = path.join(uploadPath, filename);
       await fsPromises.mkdir(uploadPath, { recursive: true });
 
-      // Optimize and save new image
-      let transformer = sharp(file.buffer).resize({ width: 1280 });
+      // ✅ Optimize to around 1 megapixel total (keeping aspect ratio)
+      const metadata = await sharp(file.buffer).metadata();
+      const aspectRatio = metadata.width / metadata.height;
+      const targetPixels = 1_000_000; // ~1 MP
+      const targetWidth = Math.round(Math.sqrt(targetPixels * aspectRatio));
+      const targetHeight = Math.round(targetWidth / aspectRatio);
+
+      let transformer = sharp(file.buffer).resize({
+        width: targetWidth,
+        height: targetHeight,
+        fit: 'inside',
+      });
+
       if (format === 'jpeg') transformer = transformer.jpeg({ quality: 80 });
       else if (format === 'png') transformer = transformer.png({ compressionLevel: 8 });
       else if (format === 'webp') transformer = transformer.webp({ quality: 80 });
@@ -165,8 +193,8 @@ exports.updateHeroImage = async (req, res) => {
       await transformer.toFile(fullPath);
     }
 
-    // Update DB record with new filename (if changed) and new URL
-    const sql = 'UPDATE hero_images SET filename = ?, url = ?, size=? WHERE id = ?';
+    // Update DB record
+    const sql = 'UPDATE hero_images SET filename = ?, url = ?, size = ? WHERE id = ?';
     await db.execute(sql, [filename, url, size, id]);
 
     res.json({ message: 'Hero image updated successfully', filename, url });

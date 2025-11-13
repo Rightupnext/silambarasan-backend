@@ -2,7 +2,7 @@ const path = require("path");
 const fs = require("fs");
 const fsSync = require("fs");
 const sharp = require("sharp");
-const db = require("../db"); // your DB connection
+const db = require("../db");
 const multer = require("multer");
 
 // ---------------- Multer setup ----------------
@@ -16,7 +16,7 @@ const upload = multer({
     }
     cb(null, true);
   },
-  limits: {}, // ✅ Removed file size limit (allow any size)
+  limits: {}, // ✅ No upload size limit
 });
 
 // MIME to extension map
@@ -29,7 +29,7 @@ const mimeToExtension = {
   "image/bmp": "bmp",
 };
 
-// ---------------- Image processing middleware (ORIGINAL SIZE) ----------------
+// ---------------- Image processing middleware (≈ 1 MP optimization) ----------------
 const processImages = async (req, res, next) => {
   if (!req.files || !req.files.length) return next();
 
@@ -38,7 +38,7 @@ const processImages = async (req, res, next) => {
 
   const savedImages = [];
 
-  for (let file of req.files) {
+  for (const file of req.files) {
     const ext = mimeToExtension[file.mimetype];
     if (!ext) continue;
 
@@ -46,12 +46,36 @@ const processImages = async (req, res, next) => {
     const outputPath = path.join(outputDir, filename);
 
     try {
-      // ✅ Save original file buffer exactly as uploaded
-      fs.writeFileSync(outputPath, file.buffer);
+      // Get metadata to compute resize dimensions (~1 MP)
+      const metadata = await sharp(file.buffer).metadata();
+      const aspectRatio = metadata.width / metadata.height;
+      const targetPixels = 1_000_000; // 1 megapixel
+      const targetWidth = Math.round(Math.sqrt(targetPixels * aspectRatio));
+      const targetHeight = Math.round(targetWidth / aspectRatio);
+
+      // Optimize and resize
+      let transformer = sharp(file.buffer).resize({
+        width: targetWidth,
+        height: targetHeight,
+        fit: "inside",
+      });
+
+      if (ext === "jpg" || ext === "jpeg") {
+        transformer = transformer.jpeg({ quality: 80 });
+      } else if (ext === "png") {
+        transformer = transformer.png({ compressionLevel: 8 });
+      } else if (ext === "webp") {
+        transformer = transformer.webp({ quality: 80 });
+      } else {
+        // Fallback for other image types
+        transformer = transformer.jpeg({ quality: 80 });
+      }
+
+      await transformer.toFile(outputPath);
 
       savedImages.push(`products/${filename}`);
     } catch (err) {
-      console.error("❌ Image saving failed:", err.message);
+      console.error("❌ Image processing failed:", err.message);
       return next(err);
     }
   }

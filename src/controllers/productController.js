@@ -18,9 +18,8 @@ exports.createProductWithVariants = async (req, res) => {
     variants,
   } = req.body;
 
-  const images = req.imageFilenames || []; // array of 1–5 images
-  let parsedVariants = [];
-  try {
+  const images = req.imageFilenames || [];
+  let parsedVariants = [];  try {
     parsedVariants = typeof variants === "string" ? JSON.parse(variants) : variants;
     if (!Array.isArray(parsedVariants))
       throw new Error("Variants must be an array");
@@ -41,7 +40,7 @@ exports.createProductWithVariants = async (req, res) => {
         product_code,
         category,
         description,
-        JSON.stringify(images), // store as JSON
+        JSON.stringify(images),
         price,
         discount,
         JSON.stringify(offerExpiry || []),
@@ -53,28 +52,30 @@ exports.createProductWithVariants = async (req, res) => {
     const productId = productResult.insertId;
 
     const variantPromises = parsedVariants.map((variant) => {
-      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size;
+      const colorValue = variant.color && variant.color.trim() !== "" ? variant.color : null; // ✅ Optional
+      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size || null;
+      const quantity = variant.quantity || 0;
       return connection.query(
         `INSERT INTO inventory_variants (product_id, color, size, quantity)
          VALUES (?, ?, ?, ?)`,
-        [productId, variant.color, sizeString, variant.quantity]
+        [productId, colorValue, sizeString, quantity]
       );
     });
 
     await Promise.all(variantPromises);
     await connection.commit();
 
-    res.status(201).json({ message: "Product and variants added", productId });
+    res.status(201).json({ message: "✅ Product and variants added successfully", productId });
   } catch (err) {
     await connection.rollback();
-    console.error(err.message);
+    console.error("❌ Error creating product:", err.message);
     res.status(500).json({ error: err.message });
   } finally {
     connection.release();
   }
 };
 
-// ---------------- Update Product ----------------
+// ---------------- Update Product with Variants ----------------
 exports.updateProductWithVariants = async (req, res) => {
   const { id } = req.params;
   const {
@@ -88,7 +89,7 @@ exports.updateProductWithVariants = async (req, res) => {
     trend = "regular",
     offerExpiry,
     variants,
-    existingImages, // JSON array
+    existingImages,
   } = req.body;
 
   const uploadDir = path.join(__dirname, "../../uploads/products");
@@ -112,12 +113,8 @@ exports.updateProductWithVariants = async (req, res) => {
   try {
     await connection.beginTransaction();
 
-    // 1. Fetch old images
-    const [rows] = await connection.query(
-      `SELECT images FROM boutique_inventory WHERE id = ?`,
-      [id]
-    );
-
+    // Fetch old images
+    const [rows] = await connection.query(`SELECT images FROM boutique_inventory WHERE id = ?`, [id]);
     if (rows.length === 0) {
       await connection.rollback();
       return res.status(404).json({ message: "Product not found" });
@@ -130,7 +127,7 @@ exports.updateProductWithVariants = async (req, res) => {
       oldImagesArray = [];
     }
 
-    // 2. Delete removed images from local folder
+    // Delete removed images
     const imagesToDelete = oldImagesArray.filter(img => !existingImagesArray.includes(img));
     for (const img of imagesToDelete) {
       const imgPath = path.join(uploadDir, img.replace(/^products\//, ""));
@@ -140,17 +137,15 @@ exports.updateProductWithVariants = async (req, res) => {
       }
     }
 
-    // 3. Combine existing and new images
+    // Combine images
     const finalImagesArray = [...existingImagesArray, ...newImages];
 
-    // 4. Parse offerExpiry
-    let finalOfferExpiry = offerExpiry ? JSON.stringify(offerExpiry) : null;
-
-    // 5. Update product
+    // Update product details
+    const finalOfferExpiry = offerExpiry ? JSON.stringify(offerExpiry) : null;
     await connection.query(
       `UPDATE boutique_inventory
-       SET product_name=?, product_code=?, category=?, description=?,
-           images=?, price=?, discount=?, Bulk_discount=?, offerExpiry=?, trend=?
+       SET product_name=?, product_code=?, category=?, description=?, images=?,
+           price=?, discount=?, Bulk_discount=?, offerExpiry=?, trend=?
        WHERE id=?`,
       [
         product_name,
@@ -167,18 +162,21 @@ exports.updateProductWithVariants = async (req, res) => {
       ]
     );
 
-    // 6. Update variants
+    // Update variants
     parsedVariants = typeof variants === "string" ? JSON.parse(variants) : variants;
-    if (!Array.isArray(parsedVariants)) throw new Error("Variants must be array");
+    if (!Array.isArray(parsedVariants)) throw new Error("Variants must be an array");
 
     await connection.query(`DELETE FROM inventory_variants WHERE product_id = ?`, [id]);
 
     for (const variant of parsedVariants) {
-      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size;
+      const colorValue = variant.color && variant.color.trim() !== "" ? variant.color : null; // ✅ Optional
+      const sizeString = Array.isArray(variant.size) ? variant.size.join(",") : variant.size || null;
+      const quantity = variant.quantity || 0;
+
       await connection.query(
         `INSERT INTO inventory_variants (product_id, color, size, quantity)
          VALUES (?, ?, ?, ?)`,
-        [id, variant.color, sizeString, variant.quantity]
+        [id, colorValue, sizeString, quantity]
       );
     }
 
@@ -190,7 +188,7 @@ exports.updateProductWithVariants = async (req, res) => {
     });
   } catch (err) {
     await connection.rollback();
-    console.error(err.message);
+    console.error("❌ Error updating product:", err.message);
     res.status(500).json({ error: err.message });
   } finally {
     connection.release();
