@@ -1,16 +1,13 @@
 // controllers/orderController.js
 const db = require("../db");
 require("dotenv").config();
-const Razorpay = require("razorpay");
+
 const { CreateSdkOrderRequest,crypto } = require("pg-sdk-node");
 const { randomUUID } = require("crypto");
 const phonepeClient = require("../middleware/phonepeClient");
-const razorpay = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET,
-});
 
-// CREATE Razorpay Order and Save Temp Order with failed status
+
+// CREATE  Order and Save Temp Order with failed status
 exports.createOrder = async (req, res) => {
   try {
     const { customer, amount } = req.body; // amount in paisa
